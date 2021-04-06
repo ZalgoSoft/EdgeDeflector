@@ -63,7 +63,7 @@ namespace EdgeDeflector
             shellcmd_key.Close();
 
             uriclass_key.SetValue("URL Protocol", string.Empty);
-            
+
             uriclass_key.Close();
 
             RegistryKey software_key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Clients\EdgeUriDeflector", true);
@@ -77,7 +77,7 @@ namespace EdgeDeflector
             {
                 capability_key = software_key.CreateSubKey("Capabilities", true);
             }
-            
+
             capability_key.SetValue("ApplicationDescription", "Open web links normally forced to open in Microsoft Edge in your default web browser.");
             capability_key.SetValue("ApplicationName", "EdgeDeflector");
 
@@ -88,6 +88,8 @@ namespace EdgeDeflector
             }
 
             urlass_key.SetValue("microsoft-edge", "EdgeUriDeflector");
+            urlass_key.SetValue("microsoft-edge-holographic", "EdgeUriDeflector");
+            urlass_key.SetValue("read", "EdgeUriDeflector");
             urlass_key.Close();
 
             capability_key.Close();
@@ -127,6 +129,18 @@ namespace EdgeDeflector
             return uri.StartsWith("microsoft-edge:", StringComparison.OrdinalIgnoreCase) && !uri.Contains(" ");
         }
 
+        static bool IsMsEdgeReadUri(string uri)
+        {
+            uri = uri.ToLower();
+            return uri.StartsWith("READ:", StringComparison.OrdinalIgnoreCase) && !uri.Contains(" ");
+        }
+        static bool IsMsEdgeHolographicUri(string uri)
+        {
+            uri = uri.ToLower();
+            return uri.StartsWith("microsoft-edge-holographic:", StringComparison.OrdinalIgnoreCase) && !uri.Contains(" ");
+        }
+
+
         static bool IsNonAuthoritativeWithUrlQueryParameter(string uri)
         {
             return uri.Contains("microsoft-edge:?") && uri.Contains("&url=");
@@ -141,6 +155,62 @@ namespace EdgeDeflector
         static string RewriteMsEdgeUriSchema(string uri)
         {
             string msedge_protocol_pattern = "^microsoft-edge:/*";
+
+            Regex rgx = new Regex(msedge_protocol_pattern);
+            string new_uri = rgx.Replace(uri, string.Empty);
+
+            if (IsHttpUri(new_uri))
+            {
+                return new_uri;
+            }
+
+            // May be new-style Cortana URI - try and split out
+            if (IsNonAuthoritativeWithUrlQueryParameter(uri))
+            {
+                string cortanaUri = GetURIFromCortanaLink(uri);
+                if (IsHttpUri(cortanaUri))
+                {
+                    // Correctly form the new URI before returning
+                    return cortanaUri;
+                }
+            }
+
+            // defer fallback to web browser
+            return "http://" + new_uri;
+        }
+
+
+        static string RewriteMsEdgeReadUriSchema(string uri)
+        {
+            string msedge_protocol_pattern = "^read:/*";
+
+            Regex rgx = new Regex(msedge_protocol_pattern);
+            string new_uri = rgx.Replace(uri, string.Empty);
+
+            if (IsHttpUri(new_uri))
+            {
+                return new_uri;
+            }
+
+            // May be new-style Cortana URI - try and split out
+            if (IsNonAuthoritativeWithUrlQueryParameter(uri))
+            {
+                string cortanaUri = GetURIFromCortanaLink(uri);
+                if (IsHttpUri(cortanaUri))
+                {
+                    // Correctly form the new URI before returning
+                    return cortanaUri;
+                }
+            }
+
+            // defer fallback to web browser
+            return "http://" + new_uri;
+        }
+
+
+        static string RewriteMsEdgeHolographicUriSchema(string uri)
+        {
+            string msedge_protocol_pattern = "^microsoft-edge-holographic:/*";
 
             Regex rgx = new Regex(msedge_protocol_pattern);
             string new_uri = rgx.Replace(uri, string.Empty);
@@ -188,7 +258,16 @@ namespace EdgeDeflector
                 string uri = RewriteMsEdgeUriSchema(args[0]);
                 OpenUri(uri);
             }
-
+            else if (args.Length == 1 && IsMsEdgeReadUri(args[0]))
+            {
+                string uri = RewriteMsEdgeReadUriSchema(args[0]);
+                OpenUri(uri);
+            }
+            else if (args.Length == 1 && IsMsEdgeHolographicUri(args[0]))
+            {
+                string uri = RewriteMsEdgeHolographicUriSchema(args[0]);
+                OpenUri(uri);
+            }
             // Install when running without argument
             else if (args.Length == 0)
             {
