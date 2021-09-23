@@ -90,6 +90,7 @@ namespace EdgeDeflector
             urlass_key.SetValue("microsoft-edge", "EdgeUriDeflector");
             urlass_key.SetValue("microsoft-edge-holographic", "EdgeUriDeflector");
             urlass_key.SetValue("read", "EdgeUriDeflector");
+            urlass_key.SetValue("ms-xbl-3d8b930f", "EdgeUriDeflector");
             urlass_key.Close();
 
             capability_key.Close();
@@ -139,6 +140,11 @@ namespace EdgeDeflector
             uri = uri.ToLower();
             return uri.StartsWith("microsoft-edge-holographic:", StringComparison.OrdinalIgnoreCase) && !uri.Contains(" ");
         }
+        static bool IsMsXbk3d8b930fUri(string uri)
+        {
+            uri = uri.ToLower();
+            return uri.StartsWith("ms-xbk-3d8b930f:", StringComparison.OrdinalIgnoreCase) && !uri.Contains(" ");
+        }
 
 
         static bool IsNonAuthoritativeWithUrlQueryParameter(string uri)
@@ -183,6 +189,34 @@ namespace EdgeDeflector
         static string RewriteMsEdgeReadUriSchema(string uri)
         {
             string msedge_protocol_pattern = "^read:/*";
+
+            Regex rgx = new Regex(msedge_protocol_pattern);
+            string new_uri = rgx.Replace(uri, string.Empty);
+
+            if (IsHttpUri(new_uri))
+            {
+                return new_uri;
+            }
+
+            // May be new-style Cortana URI - try and split out
+            if (IsNonAuthoritativeWithUrlQueryParameter(uri))
+            {
+                string cortanaUri = GetURIFromCortanaLink(uri);
+                if (IsHttpUri(cortanaUri))
+                {
+                    // Correctly form the new URI before returning
+                    return cortanaUri;
+                }
+            }
+
+            // defer fallback to web browser
+            return "http://" + new_uri;
+        }
+
+
+        static string RewriteMsXbk3d8b930fUriSchema(string uri)
+        {
+            string msedge_protocol_pattern = "^ms-xbk-3d8b930f:/*";
 
             Regex rgx = new Regex(msedge_protocol_pattern);
             string new_uri = rgx.Replace(uri, string.Empty);
@@ -266,6 +300,11 @@ namespace EdgeDeflector
             else if (args.Length == 1 && IsMsEdgeHolographicUri(args[0]))
             {
                 string uri = RewriteMsEdgeHolographicUriSchema(args[0]);
+                OpenUri(uri);
+            }
+            else if (args.Length == 1 && IsMsXbk3d8b930fUri(args[0]))
+            {
+                string uri = RewriteMsXbk3d8b930fUriSchema(args[0]);
                 OpenUri(uri);
             }
             // Install when running without argument
